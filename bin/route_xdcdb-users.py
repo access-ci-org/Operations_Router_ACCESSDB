@@ -60,23 +60,6 @@ class HandleLoad():
             self.dest[var] = None
 
         self.Affiliation = 'xsede.org'
-        # Field Maps "fm" local to global
-        self.fm = {
-            'record_status': {
-                '4': 'planned',
-                '3': 'pre-production',
-                '2': 'decommissioned',
-                '1': 'production',
-            }}
-
-        self.have_column = ['resource_id', 'info_resourceid',
-                            'resource_descriptive_name', 'resource_description',
-
-                            'project_affiliation', 'provider_level',
-                            'resource_status', 'current_statuses', 'updated_at']
-
-
-        default_source = 'postgresql://localhost:5432/'
 
         parser = argparse.ArgumentParser(
             epilog='File SRC|DEST syntax: file:<file path and name')
@@ -89,8 +72,8 @@ class HandleLoad():
 
         parser.add_argument('-l', '--log', action='store',
                             help='Logging level (default=warning)')
-        parser.add_argument('-c', '--config', action='store', default='./route_ermap.conf',
-                            help='Configuration file default=./route_usermap.conf')
+        parser.add_argument('-c', '--config', action='store', default='./route_xdcdb-users.conf',
+                            help='Configuration file default=./route_xdcdb-users.conf')
 
         parser.add_argument('--verbose', action='store_true',
                             help='Verbose output')
@@ -140,7 +123,7 @@ class HandleLoad():
             if 'SOURCE_URL' in self.config:
                 self.args.src = self.config['SOURCE_URL']
         if not getattr(self.args, 'src', None):  # Tests for None and empty ''
-            self.args.src = default_source
+            self.args.src = 'postgresql://localhost:5432/'
         idx = self.args.src.find(':')
         if idx > 0:
             (self.src['scheme'], self.src['path']) = (
@@ -282,7 +265,7 @@ class HandleLoad():
                 self.logger.debug(
                     'Usermap save person_id={}'.format(person_id))
                 self.new[nitem['person_id']] = model
-                #self.stats['ResourceProvider.Update'] += 1
+                self.stats['UserMap.Update'] += 1
             except (DataError, IntegrityError) as e:
                 msg = '{} saving ID={}: {}'.format(
                     type(e).__name__, person_id, e.message)
@@ -295,7 +278,7 @@ class HandleLoad():
                 if compstring not in new_items:
                     try:
                         self.cur[resource][local_user].delete()
-                        #self.stats['XSEDELocalUsermap.Delete'] += 1
+                        self.stats['Usermap.Delete'] += 1
                         self.logger.info('Usermap delete person_id={}'.format(
                             self.cur[resource][local_user].person_id))
                     except (DataError, IntegrityError) as e:
@@ -331,8 +314,8 @@ class HandleLoad():
         while True:
             pa_application = os.path.basename(__file__)
             pa_function = 'Warehouse_Usermap'
-            pa_id = 'resources'
-            pa_topic = 'resources'
+            pa_id = 'xdcdb-usermap'
+            pa_topic = 'Users'
             pa_about = 'xsede.org'
             pa = ProcessingActivity(
                 pa_application, pa_function, pa_id, pa_topic, pa_about)
@@ -341,14 +324,14 @@ class HandleLoad():
                 CURSOR = self.Connect_Source(self.src['uri'])
 
             self.start = datetime.now(utc)
-            self.stats['ResourceProvider.Update'] = 0
-            self.stats['ResourceProvider.Delete'] = 0
-            self.stats['ResourceProvider.Skip'] = 0
+            self.stats['UserMap.Update'] = 0
+            self.stats['UserMap.Delete'] = 0
+            self.stats['UserMap.Skip'] = 0
             INPUT = self.Retrieve_Usermap(CURSOR)
             (rc, warehouse_msg) = self.Warehouse_Usermap(INPUT)
             self.end = datetime.now(utc)
-            summary_msg = 'Processed ResourceProvider in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((self.end - self.start).total_seconds(
-            ), self.stats['ResourceProvider.Update'], self.stats['ResourceProvider.Delete'], self.stats['ResourceProvider.Skip'])
+            summary_msg = 'Processed UserMap in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((self.end - self.start).total_seconds(
+            ), self.stats['UserMap.Update'], self.stats['UserMap.Delete'], self.stats['UserMap.Skip'])
             self.logger.info(summary_msg)
 
             self.Disconnect_Source(CURSOR)

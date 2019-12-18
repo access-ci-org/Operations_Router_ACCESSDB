@@ -1,18 +1,18 @@
 #!/bin/bash
 
 ### BEGIN INIT INFO
-# Provides:          route_usermap
+# Provides:          route_xdcdb-users
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Route Usermap information from a source to a destination
-# Description:       Route Usermap information from a {file, directory, amqp} to a {directory, api}
+# Short-Description: Route XDCDB-Users information from a source to a destination
+# Description:       Route XDCDB-Users information from a {file, directory, amqp} to a {directory, api}
 ### END INIT INFO
 
 # Change these lines to suit where you install your script and what you want to call it
-DAEMON_NAME=route_usermap
-APP_BASE=/soft/warehouse-apps-1.0/Manage-Usermap
+DAEMON_NAME=route_xdcdb-users
+APP_BASE=/soft/warehouse-apps-1.0/Manage-XDCDB-Users
 APP_SOURCE=${APP_BASE}/PROD
 WAREHOUSE_SOURCE=/soft/warehouse-1.0/PROD
 DAEMON_BIN=${APP_SOURCE}/bin/${DAEMON_NAME}.py
