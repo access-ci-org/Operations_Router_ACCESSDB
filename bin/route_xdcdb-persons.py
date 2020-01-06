@@ -242,9 +242,9 @@ class HandleLoad():
             rowdict = dict(zip(COLS, row))
             key = rowdict['person_id']
             DATA[key] = rowdict
-            DATA['addresses'] = A_DATA.get(key, {})
-            DATA['citizenships'] = C_DATA.get(key, None)
-            DATA['emails'] = E_DATA.get(key, None)
+            DATA[key]['addresses'] = A_DATA.get(key, {})
+            DATA[key]['citizenships'] = C_DATA.get(key, None)
+            DATA[key]['emails'] = E_DATA.get(key, None)
         return(DATA)
 
     def Store_Destination(self, new_items):
