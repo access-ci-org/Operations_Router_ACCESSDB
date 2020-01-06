@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### BEGIN INIT INFO
-# Provides:          route_xdcdb-users
+# Provides:          route_xdcdb-persons
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
@@ -11,7 +11,7 @@
 ### END INIT INFO
 
 # Change these lines to suit where you install your script and what you want to call it
-DAEMON_NAME=route_xdcdb-users
+DAEMON_NAME=route_xdcdb-persons
 APP_BASE=/soft/warehouse-apps-1.0/Manage-XDCDB-Users
 APP_SOURCE=${APP_BASE}/PROD
 WAREHOUSE_SOURCE=/soft/warehouse-1.0/PROD

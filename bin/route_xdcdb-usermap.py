@@ -1,65 +1,31 @@
 #!/usr/bin/env python3
 
-# Load XDCDB username information from a source (database) to a destination (warehouse)
-import pdb
-import django
-import shutil
-import ssl
-import json
-import psycopg2
-import os
-import pwd
-import re
-import sys
+# Load XDCDB User information from a source (database) to a destination (warehouse)
 import argparse
+from datetime import datetime
+import django
+import json
 import logging
 import logging.handlers
+import os
+import psycopg2
+import pwd
+import re
+import shutil
 import signal
-import datetime
-from datetime import datetime, tzinfo, timedelta
-from time import sleep
-import pytz
-Central = pytz.timezone("US/Central")
-UTC_TZ = pytz.utc
-
-try:
-    import http.client as httplib
-except ImportError:
-    import httplib
+import sys
 
 django.setup()
 from processing_status.process import ProcessingActivity
 from xdcdb.models import XSEDELocalUsermap
-from django.utils.dateparse import parse_datetime
 from django.db import DataError, IntegrityError
 
-
-class UTC(tzinfo):
-    def utcoffset(self, dt):
-        return timedelta(0)
-
-    def tzname(self, dt):
-        return 'UTC'
-
-    def dst(self, dt):
-        return timedelta(0)
-
-
-utc = UTC()
-
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 class HandleLoad():
     def __init__(self):
-        self.args = None
-        self.config = {}
-        self.src = {}
-        self.dest = {}
-        self.stats = {}
-        for var in ['uri', 'scheme', 'path']:  # Where <full> contains <type>:<obj>
-            self.src[var] = None
-            self.dest[var] = None
-
-        self.Affiliation = 'xsede.org'
+        self.MyName = 'UserMap'
 
         parser = argparse.ArgumentParser(
             epilog='File SRC|DEST syntax: file:<file path and name')
@@ -72,7 +38,7 @@ class HandleLoad():
 
         parser.add_argument('-l', '--log', action='store',
                             help='Logging level (default=warning)')
-        parser.add_argument('-c', '--config', action='store', default='./route_xdcdb-users.conf',
+        parser.add_argument('-c', '--config', action='store', default='./route_xdcdb-usermap.conf',
                             help='Configuration file default=./route_xdcdb-users.conf')
 
         parser.add_argument('--verbose', action='store_true',
@@ -82,6 +48,7 @@ class HandleLoad():
         self.args = parser.parse_args()
 
         if self.args.pdb:
+            import pdb
             pdb.set_trace()
 
         # Load configuration file
@@ -95,7 +62,7 @@ class HandleLoad():
         try:
             self.config = json.loads(conf)
         except ValueError as e:
-            print('Error "{}" parsing config={}'.format(e, config_path))
+            eprint('Error "{}" parsing config={}'.format(e, config_path))
             sys.exit(1)
 
         # Initialize logging from arguments, or config file, or default to WARNING as last resort
@@ -103,8 +70,7 @@ class HandleLoad():
         if self.args.log is not None:
             numeric_log = getattr(logging, self.args.log.upper(), None)
         if numeric_log is None and 'LOG_LEVEL' in self.config:
-            numeric_log = getattr(
-                logging, self.config['LOG_LEVEL'].upper(), None)
+            numeric_log = getattr(logging, self.config['LOG_LEVEL'].upper(), None)
         if numeric_log is None:
             numeric_log = getattr(logging, 'WARNING', None)
         if not isinstance(numeric_log, int):
@@ -113,12 +79,18 @@ class HandleLoad():
         self.logger.setLevel(numeric_log)
         self.formatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d %(levelname)s %(message)s',
                                            datefmt='%Y/%m/%d %H:%M:%S')
-        self.handler = logging.handlers.TimedRotatingFileHandler(self.config['LOG_FILE'], when='W6',
-                                                                 backupCount=999, utc=True)
+        self.handler = logging.handlers.TimedRotatingFileHandler(
+            self.config['LOG_FILE'], when='W6', backupCount=999, utc=True)
         self.handler.setFormatter(self.formatter)
         self.logger.addHandler(self.handler)
 
-        # Verify arguments and parse compound arguments
+        # Verify nd parse source and destination arguments
+        self.src = {}
+        self.dest = {}
+        for var in ['uri', 'scheme', 'path']:  # Where <full> contains <type>:<obj>
+            self.src[var] = None
+            self.dest[var] = None
+
         if not getattr(self.args, 'src', None):  # Tests for None and empty ''
             if 'SOURCE_URL' in self.config:
                 self.args.src = self.config['SOURCE_URL']
@@ -210,13 +182,12 @@ class HandleLoad():
     def Disconnect_Source(self, cursor):
         cursor.close()
 
-    def Retrieve_Usermap(self, cursor):
+    def Retrieve_Source(self, cursor):
         try:
             sql = 'SELECT * from info_services.xsede_local_usermap'
             cursor.execute(sql)
         except psycopg2.Error as e:
-            self.logger.error("Failed '{}' with {}: {}".format(
-                sql, e.pgcode, e.pgerror))
+            self.logger.error("Failed '{}' with {}: {}".format(sql, e.pgcode, e.pgerror))
             exit(1)
 
         COLS = [desc.name for desc in cursor.description]
@@ -226,10 +197,10 @@ class HandleLoad():
             DATA[str(rowdict['username'])+str(rowdict['resource_name'])] = rowdict
         return(DATA)
 
-    def Warehouse_Usermap(self, new_items):
+    def Store_Destination(self, new_items):
         self.cur = {}   # Items currently in database
         self.new = {}   # New resources in document
-        now_utc = datetime.now(utc)
+        now_utc = datetime.utcnow()
 
         for item in XSEDELocalUsermap.objects.all():
             if str(item.resource_name) in self.cur:
@@ -265,7 +236,7 @@ class HandleLoad():
                 self.logger.debug(
                     'Usermap save person_id={}'.format(person_id))
                 self.new[nitem['person_id']] = model
-                self.stats['UserMap.Update'] += 1
+                self.MyUpdateStat += 1
             except (DataError, IntegrityError) as e:
                 msg = '{} saving ID={}: {}'.format(
                     type(e).__name__, person_id, e.message)
@@ -278,8 +249,8 @@ class HandleLoad():
                 if compstring not in new_items:
                     try:
                         self.cur[resource][local_user].delete()
-                        self.stats['Usermap.Delete'] += 1
-                        self.logger.info('Usermap delete person_id={}'.format(
+                        self.MyDeleteStat += 1
+                        self.logger.info('{} delete person_id={}'.format(self.MyName,
                             self.cur[resource][local_user].person_id))
                     except (DataError, IntegrityError) as e:
                         self.logger.error('{} deleting ID={}: {}'.format(
@@ -296,9 +267,9 @@ class HandleLoad():
                     ts = datetime.strftime(datetime.now(), '%Y-%m-%d_%H:%M:%S')
                     newpath = '{}.{}'.format(path, ts)
                     shutil.copy(path, newpath)
-                    print('SaveDaemonLog as {}'.format(newpath))
+                    eprint('SaveDaemonLog as {}'.format(newpath))
         except Exception as e:
-            print('Exception in SaveDaemonLog({})'.format(path))
+            eprint('Exception in SaveDaemonLog({})'.format(path))
         return
 
     def exit_signal(self, signal, frame):
@@ -311,34 +282,35 @@ class HandleLoad():
         self.logger.info('Starting program={} pid={}, uid={}({})'.format(os.path.basename(
             __file__), os.getpid(), os.geteuid(), pwd.getpwuid(os.geteuid()).pw_name))
 
+        if self.src['scheme'] != 'postgresql':
+            eprint('Source must be "postgresql"')
+            sys.exit(1)
+            
         while True:
+            # Track that processing has started
             pa_application = os.path.basename(__file__)
-            pa_function = 'Warehouse_Usermap'
+            pa_function = 'Store_Destination'
             pa_id = 'xdcdb-usermap'
-            pa_topic = 'Users'
+            pa_topic = 'Persons'
             pa_about = 'xsede.org'
-            pa = ProcessingActivity(
-                pa_application, pa_function, pa_id, pa_topic, pa_about)
+            pa = ProcessingActivity(pa_application, pa_function, pa_id, pa_topic, pa_about)
 
-            if self.src['scheme'] == 'postgresql':
-                CURSOR = self.Connect_Source(self.src['uri'])
+            self.start_ts = datetime.utcnow()
+            self.MyUpdateStat = 0
+            self.MyDeleteStat = 0
+            self.MySkipStat = 0
 
-            self.start = datetime.now(utc)
-            self.stats['UserMap.Update'] = 0
-            self.stats['UserMap.Delete'] = 0
-            self.stats['UserMap.Skip'] = 0
-            INPUT = self.Retrieve_Usermap(CURSOR)
-            (rc, warehouse_msg) = self.Warehouse_Usermap(INPUT)
-            self.end = datetime.now(utc)
-            summary_msg = 'Processed UserMap in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((self.end - self.start).total_seconds(
-            ), self.stats['UserMap.Update'], self.stats['UserMap.Delete'], self.stats['UserMap.Skip'])
-            self.logger.info(summary_msg)
-
+            CURSOR = self.Connect_Source(self.src['uri'])
+            INPUT = self.Retrieve_Source(CURSOR)
+            (rc, warehouse_msg) = self.Store_Destination(INPUT)
             self.Disconnect_Source(CURSOR)
 
+            self.end_ts = datetime.utcnow()
+            summary_msg = 'Processed {} in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format(self.MyName,
+                (self.end_ts - self.start_ts).total_seconds(), self.MyUpdateStat, self.MyDeleteStat, self.MySkipStat)
+            self.logger.info(summary_msg)
             pa.FinishActivity(rc, summary_msg)
             break
-
 
 if __name__ == '__main__':
     router = HandleLoad()
