@@ -279,10 +279,10 @@ class HandleLoad():
                 self.logger.error(msg)
                 return(False, msg)
 
-        for item in self.cur:
-            if self.cur[item]['person_id'] not in new_items:
+        for itemid in self.cur:
+            if itemid not in new_items:
                 try:
-                    self.cur[item]['person_id'].delete()
+                    self.cur[itemid].delete()
                     self.MyDeleteStat += 1
                     self.logger.info('{} delete person_id={}'.format(self.MyName,
                         self.cur[resource][local_user].person_id))
