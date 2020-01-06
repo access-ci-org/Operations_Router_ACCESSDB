@@ -226,9 +226,9 @@ class HandleLoad():
             rowdict = dict(zip(COLS, row))
             key = rowdict['person_id']
             if key not in E_DATA:
-                E_DATA[key] = rowdict['Email']
+                E_DATA[key] = rowdict['email']
             else:
-                E_DATA[key] += ',' + rowdict['Email']
+                E_DATA[key] += ',' + rowdict['email']
 
         try:
             sql = 'SELECT * from info_services.person_v'
