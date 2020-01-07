@@ -198,7 +198,8 @@ class HandleLoad():
             key = rowdict['person_id']
             if key not in A_DATA:
                 A_DATA[key] = []
-            A_DATA[key].append(rowdict)
+            sorted_rowdict = {k:v for k,v in sorted(rowdict.items())}
+            A_DATA[key].append(sorted_rowdict)
         
         try:
             sql = 'SELECT * from info_services.citizenship_v'
@@ -250,21 +251,29 @@ class HandleLoad():
         return(DATA)
 
     def Store_Destination(self, new_items):
-        self.cur = {}   # Items currently in database
-        self.new = {}   # New resources in document
+        self.cur = {}      # Items currently in database
+        self.curhash = {}  # Hashes for items currently in database
+        self.new = {}      # New resources in document
         now_utc = datetime.utcnow()
 
         for item in XSEDEPerson.objects.all():
             self.cur[item.person_id] = item
             # Item to dict, to string, to hash of string
-            idict = {k:v for k,v in sorted(model_do_dict(item).items())}
+            xdict = model_to_dict(item)
+            xdict['addresses'] = xdict['addressesJSON']
+            del xdict['addressesJSON']
+            for i in xdict:
+                if xdict[i] == 'None':
+                    xdict[i] == None
+            idict = {k:v for k,v in sorted(xdict.items())}
             istr = str(idict).encode('UTF-8')
-            self.curhash[item.person_id] = hashlib.md5(istr)
+            self.curhash[item.person_id] = hashlib.md5(istr).digest()
         for new_id in new_items:
             nitem = new_items[new_id]
-            idict = {k:v for k,v in sorted(model_do_dict(nitem).items())}
+            idict = {k:v for k,v in sorted(nitem.items())}
             istr = str(idict).encode('UTF-8')
-            if hashlib.md5(istr) == self.curhash.get(new_id, ''):
+            if hashlib.md5(istr).digest() == self.curhash.get(new_id, ''):
+                self.MySkipStat += 1
                 continue
             try:
                 model = XSEDEPerson(person_id=nitem['person_id'],
