@@ -4,6 +4,7 @@
 import argparse
 from datetime import datetime
 import django
+import hashlib
 import json
 import logging
 import logging.handlers
@@ -19,6 +20,7 @@ django.setup()
 from processing_status.process import ProcessingActivity
 from xdcdb.models import XSEDEPerson
 from django.db import DataError, IntegrityError
+from django.forms.models import model_to_dict
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -254,8 +256,16 @@ class HandleLoad():
 
         for item in XSEDEPerson.objects.all():
             self.cur[item.person_id] = item
+            # Item to dict, to string, to hash of string
+            idict = {k:v for k,v in sorted(model_do_dict(item).items())}
+            istr = str(idict).encode('UTF-8')
+            self.curhash[item.person_id] = hashlib.md5(istr)
         for new_id in new_items:
             nitem = new_items[new_id]
+            idict = {k:v for k,v in sorted(model_do_dict(nitem).items())}
+            istr = str(idict).encode('UTF-8')
+            if hashlib.md5(istr) == self.curhash.get(new_id, ''):
+                continue
             try:
                 model = XSEDEPerson(person_id=nitem['person_id'],
                                       portal_login=str(nitem['portal_login']),
