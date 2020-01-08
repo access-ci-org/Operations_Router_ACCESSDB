@@ -194,12 +194,11 @@ class HandleLoad():
         COLS = [desc.name for desc in cursor.description]
         A_DATA = {}
         for row in cursor.fetchall():
-            rowdict = dict(zip(COLS, row))
-            key = rowdict['person_id']
-            if key not in A_DATA:
-                A_DATA[key] = []
-            sorted_rowdict = {k:v for k,v in sorted(rowdict.items())}
-            A_DATA[key].append(sorted_rowdict)
+            xdict = dict(zip(COLS, row))
+            key = xdict['person_id']
+            A_DATA[key] = [] if key not in A_DATA
+            sdict = {k:v for k,v in sorted(xdict.items())}
+            A_DATA[key].append(sdict)
         
         try:
             sql = 'SELECT * from info_services.citizenship_v'
@@ -251,28 +250,30 @@ class HandleLoad():
         return(DATA)
 
     def Store_Destination(self, new_items):
-        self.cur = {}      # Items currently in database
-        self.curhash = {}  # Hashes for items currently in database
-        self.new = {}      # New resources in document
+        self.cur = {}        # Items currently in database
+        self.curdigest = {}  # Hashes for items currently in database
+        self.new = {}        # New resources in document
         now_utc = datetime.utcnow()
 
         for item in XSEDEPerson.objects.all():
             self.cur[item.person_id] = item
-            # Item to dict, to string, to hash of string
+            # Convert item to dict then string then calculate string hash
+            # Optimize performance by only changing the database when hashes don't match
             xdict = model_to_dict(item)
-            xdict['addresses'] = xdict['addressesJSON']
+            xdict['addresses'] = []
+            for a in xdict['addressesJSON']:
+                xdict['addresses'].append({k:v for k,v in sorted(a.items())})
             del xdict['addressesJSON']
             for i in xdict:
-                if xdict[i] == 'None':
-                    xdict[i] == None
-            idict = {k:v for k,v in sorted(xdict.items())}
-            istr = str(idict).encode('UTF-8')
-            self.curhash[item.person_id] = hashlib.md5(istr).digest()
+                xdict[i] == None if xdict[i] == 'None':
+            sdict = {k:v for k,v in sorted(xdict.items())}
+            strdict = str(sdict).encode('UTF-8')
+            self.curdigest[item.person_id] = hashlib.md5(strdict).digest()
         for new_id in new_items:
             nitem = new_items[new_id]
-            idict = {k:v for k,v in sorted(nitem.items())}
-            istr = str(idict).encode('UTF-8')
-            if hashlib.md5(istr).digest() == self.curhash.get(new_id, ''):
+            sdict = {k:v for k,v in sorted(nitem.items())}
+            strdict = str(sdict).encode('UTF-8')
+            if hashlib.md5(strdict).digest() == self.curdigest.get(new_id, ''):
                 self.MySkipStat += 1
                 continue
             try:
@@ -298,16 +299,16 @@ class HandleLoad():
                 self.logger.error(msg)
                 return(False, msg)
 
-        for itemid in self.cur:
-            if itemid not in new_items:
+        for cur_id in self.cur:
+            if cur_id not in new_items:
                 try:
-                    self.cur[itemid].delete()
+                    self.cur[cur_id].delete()
                     self.MyDeleteStat += 1
                     self.logger.info('{} delete person_id={}'.format(self.MyName,
-                        self.cur[resource][local_user].person_id))
+                        self.cur[cur_id].person_id))
                 except (DataError, IntegrityError) as e:
                     self.logger.error('{} deleting ID={}: {}'.format(
-                        type(e).__name__, self.cur[resource][local_user].person_id, e.message))
+                        type(e).__name__, self.cur[cur_id].person_id, e.message))
         return(True, '')
 
     def SaveDaemonLog(self, path):
