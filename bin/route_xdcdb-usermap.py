@@ -216,30 +216,25 @@ class HandleLoad():
             nitem = new_items[new_id]
             if nitem['resource_name'] in self.cur:
                 if nitem['username'] in self.cur[nitem['resource_name']]:
+                    self.MySkipStat += 1
                     continue
 
             try:
                 model = XSEDELocalUsermap(person_id=nitem['person_id'],
-                                          portal_login=str(
-                                              nitem['portal_login']),
+                                          portal_login=str(nitem['portal_login']),
                                           resource_id=nitem['resource_id'],
-                                          resource_name=str(
-                                              nitem['resource_name']),
-                                          local_username=str(
-                                              nitem['username']),
-                                          ResourceID=str(
-                                              nitem['resource_name'])+".org",
+                                          resource_name=str(nitem['resource_name']),
+                                          local_username=str(nitem['username']),
+                                          ResourceID=str(nitem['resource_name'])+".org",
 
                                           )
                 model.save()
                 person_id = nitem['person_id']
-                self.logger.debug(
-                    'Usermap save person_id={}'.format(person_id))
+                self.logger.debug('Usermap save person_id={}'.format(person_id))
                 self.new[nitem['person_id']] = model
                 self.MyUpdateStat += 1
             except (DataError, IntegrityError) as e:
-                msg = '{} saving ID={}: {}'.format(
-                    type(e).__name__, person_id, e.message)
+                msg = '{} saving ID={}: {}'.format(type(e).__name__, person_id, str(message))
                 self.logger.error(msg)
                 return(False, msg)
 
@@ -254,7 +249,7 @@ class HandleLoad():
                             self.cur[resource][local_user].person_id))
                     except (DataError, IntegrityError) as e:
                         self.logger.error('{} deleting ID={}: {}'.format(
-                            type(e).__name__, self.cur[resource][local_user].person_id, e.message))
+                            type(e).__name__, self.cur[resource][local_user].person_id, str(message)))
         return(True, '')
 
     def SaveDaemonLog(self, path):
