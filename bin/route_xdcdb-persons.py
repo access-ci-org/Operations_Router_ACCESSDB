@@ -249,7 +249,10 @@ class HandleLoad():
             rowdict = dict(zip(COLS, row))
             key = rowdict['person_id']
             DATA[key] = rowdict
-            DATA[key]['addresses'] = A_DATA.get(key, None)
+            mn = DATA[key]['middle_name']
+            if isinstance(mn, str) and mn.lower() == 'none':
+                DATA[key]['middle_name'] = None
+            DATA[key]['addresses'] = A_DATA.get(key, [])
             DATA[key]['citizenships'] = C_DATA.get(key, None)
             DATA[key]['emails'] = E_DATA.get(key, None)
         return(DATA)
@@ -271,7 +274,7 @@ class HandleLoad():
                 xdict['addresses'].append({k:v for k,v in sorted(a.items())})
             del xdict['addressesJSON']
             for i in xdict:
-                if xdict[i].lower() == 'none':
+                if isinstance(xdict[i], str) and xdict[i].lower() == 'none':
                     xdict[i] = None
             sdict = {k:v for k,v in sorted(xdict.items())}
             strdict = str(sdict).encode('UTF-8')
@@ -303,7 +306,7 @@ class HandleLoad():
                 self.MyUpdateStat += 1
             except (DataError, IntegrityError) as e:
                 msg = '{} saving ID={}: {}'.format(
-                    type(e).__name__, person_id, e.message)
+                    type(e).__name__, nitem['person_id'], str(e))
                 self.logger.error(msg)
                 return(False, msg)
 
@@ -316,7 +319,7 @@ class HandleLoad():
                         self.cur[cur_id].person_id))
                 except (DataError, IntegrityError) as e:
                     self.logger.error('{} deleting ID={}: {}'.format(
-                        type(e).__name__, self.cur[cur_id].person_id, e.message))
+                        type(e).__name__, self.cur[cur_id].person_id, str(e)))
         return(True, '')
 
     def SaveDaemonLog(self, path):
