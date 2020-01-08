@@ -196,7 +196,8 @@ class HandleLoad():
         for row in cursor.fetchall():
             xdict = dict(zip(COLS, row))
             key = xdict['person_id']
-            A_DATA[key] = [] if key not in A_DATA
+            if key not in A_DATA:
+                A_DATA[key] = []
             sdict = {k:v for k,v in sorted(xdict.items())}
             A_DATA[key].append(sdict)
         
@@ -210,6 +211,8 @@ class HandleLoad():
         C_DATA = {}
         for row in cursor.fetchall():
             rowdict = dict(zip(COLS, row))
+            if rowdict['country'].lower() == 'none':
+                continue
             key = rowdict['person_id']
             if key not in C_DATA:
                 C_DATA[key] = rowdict['country']
@@ -226,6 +229,8 @@ class HandleLoad():
         E_DATA = {}
         for row in cursor.fetchall():
             rowdict = dict(zip(COLS, row))
+            if rowdict['email'].lower() == 'none':
+                continue
             key = rowdict['person_id']
             if key not in E_DATA:
                 E_DATA[key] = rowdict['email']
@@ -252,6 +257,7 @@ class HandleLoad():
     def Store_Destination(self, new_items):
         self.cur = {}        # Items currently in database
         self.curdigest = {}  # Hashes for items currently in database
+        self.curstring = {}  # Hashes for items currently in database
         self.new = {}        # New resources in document
         now_utc = datetime.utcnow()
 
@@ -264,10 +270,12 @@ class HandleLoad():
             for a in xdict['addressesJSON']:
                 xdict['addresses'].append({k:v for k,v in sorted(a.items())})
             del xdict['addressesJSON']
-            for i in xdict:
-                xdict[i] == None if xdict[i] == 'None':
+#            for i in xdict:
+#                if xdict[i] == 'None':
+#                    xdict[i] = None
             sdict = {k:v for k,v in sorted(xdict.items())}
             strdict = str(sdict).encode('UTF-8')
+            self.curstring[item.person_id] = strdict
             self.curdigest[item.person_id] = hashlib.md5(strdict).digest()
         for new_id in new_items:
             nitem = new_items[new_id]
