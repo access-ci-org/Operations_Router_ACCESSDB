@@ -249,7 +249,7 @@ class HandleLoad():
             rowdict = dict(zip(COLS, row))
             key = rowdict['person_id']
             DATA[key] = rowdict
-            DATA[key]['addresses'] = A_DATA.get(key, {})
+            DATA[key]['addresses'] = A_DATA.get(key, None)
             DATA[key]['citizenships'] = C_DATA.get(key, None)
             DATA[key]['emails'] = E_DATA.get(key, None)
         return(DATA)
@@ -270,9 +270,9 @@ class HandleLoad():
             for a in xdict['addressesJSON']:
                 xdict['addresses'].append({k:v for k,v in sorted(a.items())})
             del xdict['addressesJSON']
-#            for i in xdict:
-#                if xdict[i] == 'None':
-#                    xdict[i] = None
+            for i in xdict:
+                if xdict[i].lower() == 'none':
+                    xdict[i] = None
             sdict = {k:v for k,v in sorted(xdict.items())}
             strdict = str(sdict).encode('UTF-8')
             self.curstring[item.person_id] = strdict
