@@ -1,1 +1,1 @@
-*/5        6-21    * * * /bin/bash -l -c "/soft/warehouse-apps-1.0/Manage-XDCDB-Users/PROD/sbin/route_xdcdb-usermap.rc start"
+*/10 0-3,12-23 * * * /bin/bash -l -c "/soft/warehouse-apps-1.0/Manage-XDCDB-Users/PROD/sbin/route_xdcdb-usermap.rc start"
