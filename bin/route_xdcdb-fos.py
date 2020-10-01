@@ -205,7 +205,7 @@ class HandleLoad():
     def Store_Destination(self, new_items):
         self.cur = {}        # Items currently in database
         self.curdigest = {}  # Hashes for items currently in database
-        self.curstring = {}  # Hashes for items currently in database
+        self.curstring = {}  # String of items currently in database
         self.new = {}        # New resources in document
         now_utc = datetime.utcnow()
 
@@ -230,9 +230,9 @@ class HandleLoad():
                 continue
             try:
                 model = XSEDEFos(field_of_science_id=nitem['field_of_science_id'],
-                                      parent_field_of_science_id=str(nitem['parent_field_of_science_id']),
+                                      parent_field_of_science_id=nitem['parent_field_of_science_id'],
                                       field_of_science_desc=str(nitem['field_of_science_desc']),
-                                      fos_nsf_id=str(nitem['fos_nsf_id']),
+                                      fos_nsf_id=nitem['fos_nsf_id'],
                                       fos_nsf_abbrev=str(nitem['fos_nsf_abbrev']),
                                       is_active=str(nitem['is_active']),
                                   )
