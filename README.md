@@ -1,4 +1,4 @@
-# XSEDE Information Services - Manage-XDCDB-Users
+# Manage-XDCDB-Users Router for XSEDE Information Services
 
 Synchronize XDCDB Users to the Information Services warehouse.
 
