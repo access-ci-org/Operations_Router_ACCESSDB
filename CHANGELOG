@@ -1,2 +1,5 @@
+tag-0.4-20201126b JP
+  - Fix argument help typo
+
 tag-0.4-20201126 JP
   - Standardize: rename .rc to .sh and update code

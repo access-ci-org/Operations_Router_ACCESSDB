@@ -39,7 +39,7 @@ class HandleLoad():
         parser.add_argument('-l', '--log', action='store',
                             help='Logging level (default=warning)')
         parser.add_argument('-c', '--config', action='store', default='./route_xdcdb-usermap.conf',
-                            help='Configuration file default=./route_xdcdb-users.conf')
+                            help='Configuration file default=./route_xdcdb-usermap.conf')
 
         parser.add_argument('--verbose', action='store_true',
                             help='Verbose output')
