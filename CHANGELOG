@@ -1,3 +1,6 @@
+tag-0.4-20210427 JP
+  - Fix ResourceID to only append '.org' if the resource ends in '.xsede'
+
 tag-0.4-20201126b JP
   - Fix argument help typo
 

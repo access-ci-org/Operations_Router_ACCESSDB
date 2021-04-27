@@ -219,14 +219,16 @@ class HandleLoad():
                     self.MySkipStat += 1
                     continue
 
+            ResourceID = str(nitem['resource_name'])
+            if ResourceID.endswith('xsede'):
+                ResourceID += '.org'
             try:
                 model = XSEDELocalUsermap(person_id=nitem['person_id'],
                                           portal_login=str(nitem['portal_login']),
                                           resource_id=nitem['resource_id'],
                                           resource_name=str(nitem['resource_name']),
                                           local_username=str(nitem['username']),
-                                          ResourceID=str(nitem['resource_name'])+".org",
-
+                                          ResourceID=ResourceID,
                                           )
                 model.save()
                 person_id = nitem['person_id']
