@@ -288,17 +288,19 @@ class HandleLoad():
                 self.MySkipStat += 1
                 continue
             try:
-                model = XSEDEPerson(person_id=nitem['person_id'],
-                                      portal_login=str(nitem['portal_login']),
-                                      last_name=str(nitem['last_name']),
-                                      first_name=str(nitem['first_name']),
-                                      middle_name=str(nitem['middle_name']),
-                                      is_suspended=str(nitem['is_suspended']),
-                                      organization=str(nitem['organization']),
-                                      citizenships=str(nitem['citizenships']),
-                                      emails=str(nitem['emails']),
-                                      addressesJSON=nitem['addresses'],
-                                  )
+                model, created = XSEDEPerson.objects.update_or_create(
+                                    person_id=nitem['person_id'],
+                                    defaults = {
+                                        'portal_login': str(nitem['portal_login']),
+                                        'last_name': str(nitem['last_name']),
+                                        'first_name': str(nitem['first_name']),
+                                        'middle_name': str(nitem['middle_name']),
+                                        'is_suspended': str(nitem['is_suspended']),
+                                        'organization': str(nitem['organization']),
+                                        'citizenships': str(nitem['citizenships']),
+                                        'emails': str(nitem['emails']),
+                                        'addressesJSON': nitem['addresses']
+                                    })
                 model.save()
                 person_id = nitem['person_id']
                 self.logger.debug('Persons save person_id={}'.format(person_id))

@@ -223,13 +223,15 @@ class HandleLoad():
             if ResourceID.endswith('xsede'):
                 ResourceID += '.org'
             try:
-                model = XSEDELocalUsermap(person_id=nitem['person_id'],
-                                          portal_login=str(nitem['portal_login']),
-                                          resource_id=nitem['resource_id'],
-                                          resource_name=str(nitem['resource_name']),
-                                          local_username=str(nitem['username']),
-                                          ResourceID=ResourceID,
-                                          )
+                model, created = XSEDELocalUsermap.objects.update_or_create(
+                                    resource_id=nitem['resource_id'],
+                                    local_username=str(nitem['username']),
+                                    defaults = {
+                                        'person_id': nitem['person_id'],
+                                        'portal_login': str(nitem['portal_login']),
+                                        'resource_name': str(nitem['resource_name']),
+                                        'ResourceID': ResourceID
+                                    })
                 model.save()
                 person_id = nitem['person_id']
                 self.logger.debug('Usermap save person_id={}'.format(person_id))

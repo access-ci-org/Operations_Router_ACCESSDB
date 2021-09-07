@@ -229,13 +229,15 @@ class HandleLoad():
                 self.MySkipStat += 1
                 continue
             try:
-                model = XSEDEFos(field_of_science_id=nitem['field_of_science_id'],
-                                      parent_field_of_science_id=nitem['parent_field_of_science_id'],
-                                      field_of_science_desc=str(nitem['field_of_science_desc']),
-                                      fos_nsf_id=nitem['fos_nsf_id'],
-                                      fos_nsf_abbrev=str(nitem['fos_nsf_abbrev']),
-                                      is_active=str(nitem['is_active']),
-                                  )
+                model, created = XSEDEFos.objects.update_or_create(
+                                    field_of_science_id=nitem['field_of_science_id'],
+                                    defaults = {
+                                        'parent_field_of_science_id': nitem['parent_field_of_science_id'],
+                                        'field_of_science_desc': str(nitem['field_of_science_desc']),
+                                        'fos_nsf_id': nitem['fos_nsf_id'],
+                                        'fos_nsf_abbrev': str(nitem['fos_nsf_abbrev']),
+                                        'is_active': str(nitem['is_active'])
+                                    })
                 model.save()
                 field_of_science_id = nitem['field_of_science_id']
                 self.logger.debug('FOS save field_of_science_id={}'.format(field_of_science_id))
