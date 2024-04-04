@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
 
-# Load XDCDB FOS information from a source (database) to a destination (warehouse)
+# Router to synchronize ACCESS Allocations Fields of Science into the Information Sharing Platform
 import argparse
+from collections import Counter
 from datetime import datetime
-import django
 import hashlib
 import json
 import logging
 import logging.handlers
 import os
+from pid import PidFile
 import psycopg2
 import pwd
 import re
 import shutil
 import signal
-import sys
+import sys, traceback
 
+import django
 django.setup()
-from processing_status.process import ProcessingActivity
-from xdcdb.models import XSEDEFos
 from django.db import DataError, IntegrityError
 from django.forms.models import model_to_dict
+from allocations.models import FieldOfScience
+from warehouse_state.process import ProcessingActivity
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
-class HandleLoad():
+class Router():
+    # Initialization BEFORE we know if another self is running
     def __init__(self):
-        self.MyName = 'FOS'
-
         parser = argparse.ArgumentParser(
             epilog='File SRC|DEST syntax: file:<file path and name')
         parser.add_argument('-s', '--source', action='store', dest='src',
@@ -40,8 +41,8 @@ class HandleLoad():
 
         parser.add_argument('-l', '--log', action='store',
                             help='Logging level (default=warning)')
-        parser.add_argument('-c', '--config', action='store', default='./route_xdcdb-fos.conf',
-                            help='Configuration file default=./route_xdcdb-fos.conf')
+        parser.add_argument('-c', '--config', action='store', default='./router_accessdb-fos.conf',
+                            help='Configuration file default=./router_accessdb-fos.conf')
 
         parser.add_argument('--verbose', action='store_true',
                             help='Verbose output')
@@ -49,6 +50,7 @@ class HandleLoad():
                             help='Run with Python debugger')
         self.args = parser.parse_args()
 
+        # Trace for debugging as early as possible
         if self.args.pdb:
             import pdb
             pdb.set_trace()
@@ -60,25 +62,27 @@ class HandleLoad():
                 conf = file.read()
                 file.close()
         except IOError as e:
-            raise
+            eprint('Error "{}" reading config={}'.format(e, config_path))
+            sys.exit(1)
         try:
             self.config = json.loads(conf)
         except ValueError as e:
             eprint('Error "{}" parsing config={}'.format(e, config_path))
             sys.exit(1)
 
-        # Initialize logging from arguments, or config file, or default to WARNING as last resort
-        numeric_log = None
-        if self.args.log is not None:
-            numeric_log = getattr(logging, self.args.log.upper(), None)
-        if numeric_log is None and 'LOG_LEVEL' in self.config:
-            numeric_log = getattr(logging, self.config['LOG_LEVEL'].upper(), None)
-        if numeric_log is None:
-            numeric_log = getattr(logging, 'WARNING', None)
-        if not isinstance(numeric_log, int):
-            raise ValueError('Invalid log level: {}'.format(numeric_log))
+        if self.config.get('PID_FILE'):
+            self.pidfile_path =  self.config['PID_FILE']
+        else:
+            name = os.path.basename(__file__).replace('.py', '')
+            self.pidfile_path = '/var/run/{}/{}.pid'.format(name, name)
+
+    # Setup AFTER we know that no other self is running
+    def Setup(self)
+        # Initialize log level from arguments, or config file, or default to WARNING
+        loglevel_str = (self.args.log or self.config.get('LOG_LEVEL', 'WARNING')).upper()
+        loglevel_num = getattr(logging, loglevel_str, None)
         self.logger = logging.getLogger('DaemonLog')
-        self.logger.setLevel(numeric_log)
+        self.logger.setLevel(loglevel_num)
         self.formatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d %(levelname)s %(message)s',
                                            datefmt='%Y/%m/%d %H:%M:%S')
         self.handler = logging.handlers.TimedRotatingFileHandler(
@@ -106,15 +110,15 @@ class HandleLoad():
             (self.src['scheme'], self.src['path']) = (self.args.src, None)
         if self.src['scheme'] not in ['file', 'http', 'https', 'postgresql']:
             self.logger.error('Source not {file, http, https}')
-            sys.exit(1)
+            self.exit(1)
         if self.src['scheme'] in ['http', 'https', 'postgresql']:
             if self.src['path'][0:2] != '//':
                 self.logger.error('Source URL not followed by "//"')
-                sys.exit(1)
+                self.exit(1)
             self.src['path'] = self.src['path'][2:]
         if len(self.src['path']) < 1:
             self.logger.error('Source is missing a database name')
-            sys.exit(1)
+            self.exit(1)
         self.src['uri'] = self.args.src
 
         if not getattr(self.args, 'dest', None):  # Tests for None and empty ''
@@ -130,34 +134,46 @@ class HandleLoad():
             self.dest['scheme'] = self.args.dest
         if self.dest['scheme'] not in ['file', 'analyze', 'warehouse']:
             self.logger.error('Destination not {file, analyze, warehouse}')
-            sys.exit(1)
+            self.exit(1)
         self.dest['uri'] = self.args.dest
 
         if self.src['scheme'] in ['file'] and self.dest['scheme'] in ['file']:
             self.logger.error(
                 'Source and Destination can not both be a {file}')
-            sys.exit(1)
+            self.exit(1)
+
+        if self.src['scheme'] != 'postgresql':
+            eprint('Source must be "postgresql"')
+            self.exit(1)
+            
+        # Signal handling
+        signal.signal(signal.SIGINT, self.exit_signal)
+        signal.signal(signal.SIGTERM, self.exit_signal)
+
+        self.ME = os.path.basename(__file__)
+        self.logger.info('Starting program={} pid={}, uid={}({})'.format(self.ME,
+            os.getpid(), os.geteuid(), pwd.getpwuid(os.geteuid()).pw_name))
 
     def Connect_Source(self, url):
         idx = url.find(':')
         if idx <= 0:
             self.logger.error('Retrieve URL is not valid')
-            sys.exit(1)
+            self.exit(1)
 
         (type, obj) = (url[0:idx], url[idx+1:])
         if type not in ['postgresql']:
             self.logger.error('Retrieve URL is not valid')
-            sys.exit(1)
+            self.exit(1)
 
         if obj[0:2] != '//':
             self.logger.error('Retrieve URL is not valid')
-            sys.exit(1)
+            self.exit(1)
 
         obj = obj[2:]
         idx = obj.find('/')
         if idx <= 0:
             self.logger.error('Retrieve URL is not valid')
-            sys.exit(1)
+            self.exit(1)
         (host, path) = (obj[0:idx], obj[idx+1:])
         idx = host.find(':')
         if idx > 0:
@@ -186,7 +202,7 @@ class HandleLoad():
 
     def Retrieve_Source(self, cursor):
         try:
-            sql = 'SELECT * from info_services.fos'
+            sql = 'SELECT * from info_services.fosv'
             cursor.execute(sql)
         except psycopg2.Error as e:
             self.logger.error("Failed '{}' with {}: {}".format(sql, e.pgcode, e.pgerror))
@@ -209,7 +225,7 @@ class HandleLoad():
         self.new = {}        # New resources in document
         now_utc = datetime.utcnow()
 
-        for item in XSEDEFos.objects.all():
+        for item in FieldOfScience.objects.all():
             self.cur[item.field_of_science_id] = item
             # Convert item to dict then string then calculate string hash
             # Optimize performance by only changing the database when hashes don't match
@@ -226,23 +242,30 @@ class HandleLoad():
             sdict = {k:v for k,v in sorted(nitem.items())}
             strdict = str(sdict).encode('UTF-8')
             if hashlib.md5(strdict).digest() == self.curdigest.get(new_id, ''):
-                self.MySkipStat += 1
+                self.STATS.update({'Skip'})
                 continue
             try:
-                model, created = XSEDEFos.objects.update_or_create(
+                model, created = FieldOfScience.objects.update_or_create(
                                     field_of_science_id=nitem['field_of_science_id'],
                                     defaults = {
-                                        'parent_field_of_science_id': nitem['parent_field_of_science_id'],
                                         'field_of_science_desc': str(nitem['field_of_science_desc']),
                                         'fos_nsf_id': nitem['fos_nsf_id'],
                                         'fos_nsf_abbrev': str(nitem['fos_nsf_abbrev']),
-                                        'is_active': str(nitem['is_active'])
+                                        'is_active': str(nitem['is_active']),
+                                        'fos_source': str(nitem['fos_source']),
+                                        'nsf_directorate_id': str(nitem['nsf_directorate_id']),
+                                        'nsf_directorate_name': str(nitem['nsf_directorate_name']),
+                                        'nsf_directorate_abbrev': str(nitem['nsf_directorate_abbrev']),
+                                        'parent_field_of_science_id': nitem['parent_field_of_science_id'],
+                                        'parent_field_of_science_desc': nitem['parent_field_of_science_desc'],
+                                        'parent_fos_nsf_id': nitem['parent_fos_nsf_id'],
+                                        'parent_fos_nsf_abbrev': str(nitem['parent_fos_nsf_abbrev'])
                                     })
                 model.save()
                 field_of_science_id = nitem['field_of_science_id']
                 self.logger.debug('FOS save field_of_science_id={}'.format(field_of_science_id))
                 self.new[nitem['field_of_science_id']] = model
-                self.MyUpdateStat += 1
+                self.STATS.update({'Update'})
             except (DataError, IntegrityError) as e:
                 msg = '{} saving ID={}: {}'.format(
                     type(e).__name__, nitem['field_of_science_id'], str(e))
@@ -253,8 +276,8 @@ class HandleLoad():
             if cur_id not in new_items:
                 try:
                     self.cur[cur_id].delete()
-                    self.MyDeleteStat += 1
-                    self.logger.info('{} delete field_of_science_id={}'.format(self.MyName,
+                    self.STATS.update({'Delete'})
+                    self.logger.info('{} delete field_of_science_id={}'.format(self.ME,
                         self.cur[cur_id].field_of_science_id))
                 except (DataError, IntegrityError) as e:
                     self.logger.error('{} deleting ID={}: {}'.format(
@@ -276,47 +299,48 @@ class HandleLoad():
             eprint('Exception in SaveDaemonLog({})'.format(path))
         return
 
-    def exit_signal(self, signal, frame):
-        self.logger.critical('Caught signal={}, exiting...'.format(signal))
-        sys.exit(0)
+    def exit_signal(self, signum, frame):
+        self.logger.critical('Caught signal={}({}), exiting with rc={}'.format(signum, signal.Signals(signum).name, signum))
+        sys.exit(signum)
+        
+    def exit(self, rc):
+        if rc:
+            self.logger.error('Exiting with rc={}'.format(rc))
+        sys.exit(rc)
 
-    def run(self):
-        signal.signal(signal.SIGINT, self.exit_signal)
-        signal.signal(signal.SIGTERM, self.exit_signal)
-        self.logger.info('Starting program={} pid={}, uid={}({})'.format(os.path.basename(
-            __file__), os.getpid(), os.geteuid(), pwd.getpwuid(os.geteuid()).pw_name))
-
-        if self.src['scheme'] != 'postgresql':
-            eprint('Source must be "postgresql"')
-            sys.exit(1)
-            
+    def Run(self):
         while True:
+            self.start = datetime.now(timezone.utc)
+            self.STATS = Counter()
             # Track that processing has started
             pa_application = os.path.basename(__file__)
             pa_function = 'Store_Destination'
-            pa_id = 'xdcdb-fos'
+            pa_id = 'allocations-fos'
             pa_topic = 'FOS'
-            pa_about = 'xsede.org'
+            pa_about = 'access-ci.org'
             pa = ProcessingActivity(pa_application, pa_function, pa_id, pa_topic, pa_about)
-
-            self.start_ts = datetime.utcnow()
-            self.MyUpdateStat = 0
-            self.MyDeleteStat = 0
-            self.MySkipStat = 0
 
             CURSOR = self.Connect_Source(self.src['uri'])
             INPUT = self.Retrieve_Source(CURSOR)
             (rc, warehouse_msg) = self.Store_Destination(INPUT)
             self.Disconnect_Source(CURSOR)
 
-            self.end_ts = datetime.utcnow()
-            summary_msg = 'Processed {} in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format(self.MyName,
-                (self.end_ts - self.start_ts).total_seconds(), self.MyUpdateStat, self.MyDeleteStat, self.MySkipStat)
+            self.end = datetime.now(timezone.utc)
+            summary_msg = 'Processed {} in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format(self.ME,
+                (self.end - self.start).total_seconds(), self.STATS['Update'], self.STATS['Delete'], self.STATS['Skip'])
             self.logger.info(summary_msg)
             pa.FinishActivity(rc, summary_msg)
             break
 
 if __name__ == '__main__':
-    router = HandleLoad()
-    myrouter = router.run()
-    sys.exit(0)
+    router = Router()
+    with PidFile(router.pidfile_path):
+        try:
+            router.Setup()
+            rc = router.Run()
+        except Exception as e:
+            msg = '{} Exception: {}'.format(type(e).__name__, str(e))
+            router.logger.error(msg)
+            traceback.print_exc(file=sys.stdout)
+            rc = 1
+    router.exit(rc)

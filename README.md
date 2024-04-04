@@ -1,5 +1,3 @@
-# Manage-XDCDB-Users Router for XSEDE Information Services
+# ACCESS Operations Information Sharing Platform - ACCESSDB Router
 
-Synchronize XDCDB Users to the Information Services warehouse.
-
-Additional details at [https://info.xsede.org/info/](https://info.xsede.org/info/).
+Synchronize ACCESS DB information to the Information Sharing Platform

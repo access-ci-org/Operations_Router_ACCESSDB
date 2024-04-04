@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Load XDCDB Person information from a source (database) to a destination (warehouse)
+# Load ACCESSDB Person information from a source (database) to a destination (warehouse)
 import argparse
 from datetime import datetime
 import django
@@ -40,8 +40,8 @@ class HandleLoad():
 
         parser.add_argument('-l', '--log', action='store',
                             help='Logging level (default=warning)')
-        parser.add_argument('-c', '--config', action='store', default='./route_xdcdb-persons.conf',
-                            help='Configuration file default=./route_xdcdb-persons.conf')
+        parser.add_argument('-c', '--config', action='store', default='./router_accessdb-persons.conf',
+                            help='Configuration file default=./router_accessdb-persons.conf')
 
         parser.add_argument('--verbose', action='store_true',
                             help='Verbose output')

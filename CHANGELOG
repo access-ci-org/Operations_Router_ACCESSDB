@@ -1,3 +1,8 @@
+v2.0.0 2024-04-02 JP
+  - Forked https://github.com/XSEDE/Discovery_Manage-XDCDB-Users
+  - Converted to ACCESS
+  - Converted router_accessdb-fos.py (TODO persons and usermap)
+
 tag-0.5-20210907 JP
   - Switch to .objects._or_create for Drupal 3.0
 
