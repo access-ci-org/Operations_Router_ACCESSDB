@@ -1,1 +1,1 @@
-*/30 0-3,12-23 * * * /bin/bash -l -c "/soft/applications-2.0/router_accessdb/PROD/sbin/router_accessdb-fos.sh start"
+*/30 0-3,12-23 * * * /bin/bash -l -c "/soft/applications-2.0/router_accessdb/sbin/router_accessdb-fos.sh start"
