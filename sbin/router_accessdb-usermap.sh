@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### BEGIN INIT INFO
-# Provides:          %APP_NAME%
+# Provides:          %APP_NAME%-usermap
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
@@ -11,7 +11,7 @@
 ### END INIT INFO
 
 ####### Customizations START #######
-APP_NAME=%APP_NAME%
+APP_NAME=%APP_NAME%-usermap
 APP_HOME=%APP_HOME%
 WAREHOUSE_DJANGO=%WAREHOUSE_DJANGO%
 # Override in shell environment
