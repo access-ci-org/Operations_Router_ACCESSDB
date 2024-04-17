@@ -3,7 +3,7 @@
 # Router to synchronize ACCESS Allocations Fields of Science into the Information Sharing Platform
 import argparse
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import json
 import logging
@@ -77,7 +77,7 @@ class Router():
             self.pidfile_path = '/var/run/{}/{}.pid'.format(name, name)
 
     # Setup AFTER we know that no other self is running
-    def Setup(self)
+    def Setup(self):
         # Initialize log level from arguments, or config file, or default to WARNING
         loglevel_str = (self.args.log or self.config.get('LOG_LEVEL', 'WARNING')).upper()
         loglevel_num = getattr(logging, loglevel_str, None)
