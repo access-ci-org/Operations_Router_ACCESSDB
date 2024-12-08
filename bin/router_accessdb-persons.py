@@ -17,10 +17,10 @@ import signal
 import sys
 
 django.setup()
-from processing_status.process import ProcessingActivity
 from xdcdb.models import XSEDEPerson
 from django.db import DataError, IntegrityError
 from django.forms.models import model_to_dict
+from warehouse_state.process import ProcessingActivity
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)

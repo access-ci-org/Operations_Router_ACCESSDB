@@ -1,3 +1,6 @@
+v2.1.0 2024-12-08 JP
+  - Replace processing_status.process by warehouse_state.process
+
 v2.0.3 2024-04-17 JP
   - Add missing import from datetime timezone
 

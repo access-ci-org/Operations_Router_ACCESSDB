@@ -16,9 +16,9 @@ import signal
 import sys
 
 django.setup()
-from processing_status.process import ProcessingActivity
 from xdcdb.models import XSEDELocalUsermap
 from django.db import DataError, IntegrityError
+from warehouse_state.process import ProcessingActivity
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
